@@ -6,13 +6,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Build
-import android.os.Environment
-import android.os.StatFs
 import android.os.SystemClock
 import android.provider.CalendarContract
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
@@ -149,10 +149,12 @@ private fun UtilityColumn(title: String, onBack: () -> Unit, scroll: Boolean = t
 
 @Composable
 private fun InfoCard(title: String, value: String, detail: String? = null) {
-    Card(Modifier.fillMaxWidth().padding(bottom = 10.dp), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 3.dp))
+    Card(Modifier.fillMaxWidth().padding(bottom = 10.dp).animateContentSize(), shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomEnd = 24.dp, bottomStart = 10.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 15.dp)) {
+            Text(title.uppercase(Locale.getDefault()), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, letterSpacing = 0.7.sp)
+            AnimatedContent(targetState = value, label = "metric-$title") { displayedValue ->
+                Text(displayedValue, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 3.dp))
+            }
             if (!detail.isNullOrBlank()) Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
         }
     }
@@ -169,13 +171,18 @@ private fun BatteryScreen(onBack: () -> Unit) {
                 Row(Modifier.fillMaxWidth().padding(22.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.BatteryFull, null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
                     Column(Modifier.padding(start = 16.dp)) {
-                        Text("${snapshot.percent}%", style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(snapshot.percent?.let { "$it%" } ?: "Unavailable", style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text(snapshot.status, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
                 }
-                LinearProgressIndicator(progress = { snapshot.percent / 100f }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp))
+                snapshot.percent?.let { percentage ->
+                    LinearProgressIndicator(progress = { percentage / 100f }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp))
+                }
             }
             InfoCard("Power source", snapshot.source, "Reported by Android BatteryManager")
+            InfoCard("Instant current", snapshot.currentNowMa?.let(::formatCurrent) ?: "Not reported", "BatteryManager reading; sign follows the device's charge convention")
+            InfoCard("Average current", snapshot.currentAverageMa?.let(::formatCurrent) ?: "Not reported")
+            InfoCard("Charge counter", snapshot.chargeCounterMah?.let { String.format(Locale.getDefault(), "%.0f mAh", it) } ?: "Not reported", "Hardware support varies by device")
             InfoCard("Battery temperature", snapshot.temperature?.let { String.format(Locale.getDefault(), "%.1f °C", it) } ?: "Unavailable")
             InfoCard("Voltage", snapshot.voltage?.let { "$it mV" } ?: "Unavailable")
             InfoCard("Battery technology", snapshot.technology ?: "Not reported")
@@ -187,28 +194,55 @@ private fun BatteryScreen(onBack: () -> Unit) {
 @Composable
 private fun MonitorScreen(title: String, onBack: () -> Unit) {
     val context = LocalContext.current
-    var sample by remember { mutableStateOf(if (title == "Memory") memoryInfo(context) else storageInfo()) }
-    LaunchedEffect(title) { while (true) { sample = if (title == "Memory") memoryInfo(context) else storageInfo(); delay(3_000) } }
+    val isMemory = title == "Memory"
+    var sample by remember { mutableStateOf(if (isMemory) memoryInfo(context) else storageInfo()) }
+    var memory by remember { mutableStateOf(if (isMemory) memorySnapshot(context) else null) }
+    LaunchedEffect(title) {
+        while (true) {
+            if (isMemory) {
+                memory = memorySnapshot(context)
+                memory?.let { sample = it.used to it.total }
+            } else sample = storageInfo()
+            delay(3_000)
+        }
+    }
     val used = sample.first
     val total = sample.second
-    UtilityColumn(if (title == "Memory") "RAM Monitor" else "Storage Monitor", onBack) {
-        Text(if (title == "Memory") "System-wide memory snapshot" else "Internal shared storage", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 16.dp))
-        InfoCard("Used", formatBytes(used), "of ${formatBytes(total)} total")
-        InfoCard("Available", formatBytes((total - used).coerceAtLeast(0)))
-        LinearProgressIndicator(progress = { if (total > 0) used.toFloat() / total else 0f }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
-        Text(if (title == "Memory") "Android's system memory information; not per-app RAM." else "Values reflect the device data partition and are refreshed periodically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    UtilityColumn(if (isMemory) "RAM Monitor" else "Storage Monitor", onBack) {
+        Text(if (isMemory) "System-wide memory snapshot" else "Internal shared storage", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 16.dp))
+        if (!isMemory && total <= 0L) {
+            InfoCard("Storage statistics", "Unavailable", "Android couldn't read the shared storage capacity.")
+        } else {
+            InfoCard("Used", formatBytes(used), "of ${formatBytes(total)} total")
+            InfoCard("Available", formatBytes((total - used).coerceAtLeast(0)))
+            if (isMemory) {
+                memory?.let { info ->
+                    InfoCard("Low-memory threshold", formatBytes(info.threshold), if (info.lowMemory) "Android currently reports low memory" else "Android does not currently report low memory")
+                }
+            }
+            LinearProgressIndicator(progress = { if (total > 0) used.toFloat() / total else 0f }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp))
+        }
+        Text(if (isMemory) "Android's system memory information; not per-app RAM. Available memory includes memory Android can reclaim." else "Values reflect the device data partition and are refreshed periodically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun DeviceScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val metrics = context.resources.displayMetrics
+    val uptimeSeconds = SystemClock.elapsedRealtime() / 1_000
+    val uptime = "${uptimeSeconds / 86_400}d ${(uptimeSeconds / 3_600) % 24}h ${(uptimeSeconds / 60) % 60}m"
     UtilityColumn("Device Information", onBack) {
         InfoCard("Manufacturer", Build.MANUFACTURER.replaceFirstChar { it.uppercase() })
         InfoCard("Device model", Build.MODEL)
         InfoCard("Android version", "Android ${Build.VERSION.RELEASE}", "API level ${Build.VERSION.SDK_INT}")
-        InfoCard("Hardware", Build.HARDWARE.ifBlank { "Not reported" })
+        InfoCard("Security patch", Build.VERSION.SECURITY_PATCH.takeIf { it.isNotBlank() } ?: "Not reported")
+        InfoCard("Hardware platform", Build.HARDWARE.ifBlank { "Not reported" })
         if (Build.VERSION.SDK_INT >= 31) InfoCard("Processor model", Build.SOC_MODEL.takeIf { it.isNotBlank() } ?: "Not reported")
         InfoCard("Supported ABIs", Build.SUPPORTED_ABIS.take(3).joinToString().ifBlank { "Not reported" })
+        InfoCard("Screen", "${metrics.widthPixels} × ${metrics.heightPixels} px", "${metrics.densityDpi} dpi")
+        InfoCard("Device uptime", uptime, "Since the last device boot")
+        InfoCard("Kernel", System.getProperty("os.version")?.takeIf { it.isNotBlank() } ?: "Not reported")
         Text("Android does not expose reliable live CPU utilization to ordinary apps; JaBoard does not invent one.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
     }
 }
@@ -219,9 +253,11 @@ private fun NetworkScreen(onBack: () -> Unit) {
     var network by remember { mutableStateOf(networkInfo(context)) }
     LaunchedEffect(Unit) { while (true) { network = networkInfo(context); delay(3_000) } }
     UtilityColumn("Network Information", onBack) {
-        InfoCard("Connection", network.type, if (network.connected) "Connected" else "No active network")
-        InfoCard("Metered status", if (network.metered) "Metered" else "Unmetered", "Reported by Android ConnectivityManager")
-        Text("This screen reports connectivity type only. It does not inspect traffic or collect network activity.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        InfoCard("Connection", network.type, if (network.connected) if (network.validated) "Internet access validated by Android" else "Connected, but internet access is not validated" else "No active network")
+        InfoCard("Metered status", if (!network.connected) "Not connected" else if (network.metered) "Metered" else "Unmetered", "Reported by Android ConnectivityManager")
+        InfoCard("Downstream link estimate", network.downstreamKbps?.let(::formatBandwidth) ?: "Not reported", "Android capability estimate, not a live speed test")
+        InfoCard("Upstream link estimate", network.upstreamKbps?.let(::formatBandwidth) ?: "Not reported", "Android capability estimate, not a live speed test")
+        Text("JaBoard does not inspect traffic, run speed tests, or collect network activity.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

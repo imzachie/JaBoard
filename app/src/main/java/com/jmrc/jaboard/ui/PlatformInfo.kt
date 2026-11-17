@@ -4,18 +4,26 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.Environment
 import android.os.StatFs
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import com.jmrc.jaboard.R
+import android.os.Build
 import java.util.Locale
+import kotlin.math.abs
 
- data class BatterySnapshot(
-    val percent: Int = 0, val status: String = "Unknown", val source: String = "Unknown",
-    val temperature: Float? = null, val voltage: Int? = null, val technology: String? = null,
-    val health: String = "Unavailable"
+data class BatterySnapshot(
+    val percent: Int? = null,
+    val status: String = "Unknown",
+    val source: String = "Unknown",
+    val temperature: Float? = null,
+    val voltage: Int? = null,
+    val technology: String? = null,
+    val health: String = "Unavailable",
+    val currentNowMa: Float? = null,
+    val currentAverageMa: Float? = null,
+    val chargeCounterMah: Float? = null
 )
 
 fun readBattery(context: Context): BatterySnapshot {
@@ -35,6 +43,13 @@ fun readBattery(context: Context): BatterySnapshot {
         BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
         else -> "Battery"
     }
+    val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+    fun property(id: Int): Int? = runCatching { batteryManager.getIntProperty(id) }
+        .getOrNull()?.takeIf { it != Int.MIN_VALUE }
+    val currentNow = property(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)?.div(1000f)
+    val currentAverage = property(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)?.div(1000f)
+    val chargeCounter = property(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
+        ?.takeIf { it >= 0 }?.div(1000f)
     val temperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1).takeIf { it >= 0 }?.div(10f)
     val voltage = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1).takeIf { it >= 0 }
     val technology = intent.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY)?.takeIf(String::isNotBlank)
@@ -47,15 +62,31 @@ fun readBattery(context: Context): BatterySnapshot {
         BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "System reported a failure"
         else -> "Unavailable"
     }
-    return BatterySnapshot(if (level >= 0) (level * 100 / scale).coerceIn(0, 100) else 0, status, source, temperature, voltage, technology, health)
+    return BatterySnapshot(
+        percent = if (level >= 0) (level * 100 / scale).coerceIn(0, 100) else null,
+        status = status,
+        source = source,
+        temperature = temperature,
+        voltage = voltage,
+        technology = technology,
+        health = health,
+        currentNowMa = currentNow,
+        currentAverageMa = currentAverage,
+        chargeCounterMah = chargeCounter
+    )
 }
 
-fun memoryInfo(context: Context): Pair<Long, Long> {
+data class MemorySnapshot(val used: Long, val total: Long, val available: Long, val threshold: Long, val lowMemory: Boolean)
+fun memorySnapshot(context: Context): MemorySnapshot {
     val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
     val info = ActivityManager.MemoryInfo()
     manager.getMemoryInfo(info)
-    return (info.totalMem - info.availMem).coerceAtLeast(0L) to info.totalMem
+    return MemorySnapshot(
+        used = (info.totalMem - info.availMem).coerceAtLeast(0L), total = info.totalMem,
+        available = info.availMem, threshold = info.threshold, lowMemory = info.lowMemory
+    )
 }
+fun memoryInfo(context: Context): Pair<Long, Long> = memorySnapshot(context).let { it.used to it.total }
 
 fun storageInfo(): Pair<Long, Long> = runCatching {
     val stat = StatFs(Environment.getDataDirectory().path)
@@ -67,11 +98,18 @@ fun formatBytes(bytes: Long): String {
     return String.format(Locale.getDefault(), "%.1f GB", bytes / 1_000_000_000.0)
 }
 
-data class NetworkSnapshot(val connected: Boolean, val type: String, val metered: Boolean)
+data class NetworkSnapshot(
+    val connected: Boolean,
+    val type: String,
+    val metered: Boolean,
+    val validated: Boolean,
+    val downstreamKbps: Int?,
+    val upstreamKbps: Int?
+)
 fun networkInfo(context: Context): NetworkSnapshot {
     val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val network = manager.activeNetwork ?: return NetworkSnapshot(false, "Offline", false)
-    val caps = manager.getNetworkCapabilities(network) ?: return NetworkSnapshot(false, "Offline", false)
+    val network = manager.activeNetwork ?: return NetworkSnapshot(false, "Offline", false, false, null, null)
+    val caps = manager.getNetworkCapabilities(network) ?: return NetworkSnapshot(false, "Offline", false, false, null, null)
     val type = when {
         caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
         caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Mobile data"
@@ -79,5 +117,14 @@ fun networkInfo(context: Context): NetworkSnapshot {
         caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
         else -> "Connected"
     }
-    return NetworkSnapshot(true, type, manager.isActiveNetworkMetered)
+    val downstream = caps.linkDownstreamBandwidthKbps.takeIf { it > 0 }
+    val upstream = caps.linkUpstreamBandwidthKbps.takeIf { it > 0 }
+    return NetworkSnapshot(
+        connected = true, type = type, metered = manager.isActiveNetworkMetered,
+        validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+        downstreamKbps = downstream, upstreamKbps = upstream
+    )
 }
+
+fun formatCurrent(ma: Float): String = if (abs(ma) >= 1000f) String.format(Locale.getDefault(), "%.2f A", ma / 1000f) else String.format(Locale.getDefault(), "%.0f mA", ma)
+fun formatBandwidth(kbps: Int): String = if (kbps >= 1000) String.format(Locale.getDefault(), "%.1f Mbps", kbps / 1000f) else "$kbps Kbps"

@@ -3,14 +3,11 @@ package com.jmrc.jaboard.ui
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.BatteryManager
-import android.os.Build
-import android.app.ActivityManager
-import android.os.StatFs
-import android.os.Environment
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -18,8 +15,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,31 +25,28 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -69,7 +61,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
@@ -90,7 +81,6 @@ import com.jmrc.jaboard.media.JaBoardMediaNotificationListener
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(vm: JaBoardViewModel, onOpenUtility: (String) -> Unit, onOpenStudio: () -> Unit) {
@@ -98,13 +88,23 @@ fun HomeScreen(vm: JaBoardViewModel, onOpenUtility: (String) -> Unit, onOpenStud
     val weather by vm.weather.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(30_000) } }
+    val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        else -> "Good evening"
+    }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Row(Modifier.fillMaxWidth().padding(start = 22.dp, top = 18.dp, end = 18.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 22.dp, top = 20.dp, end = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("JaBoard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold)
-                Text(DateFormat.getDateInstance(DateFormat.FULL).format(Date(now)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("JABOARD  ·  YOUR SPACE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.4.sp)
+                Text(greeting, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
             }
-            AssistChip(onClick = onOpenStudio, label = { Text("Edit") }, leadingIcon = { Icon(Icons.Filled.Tune, null) })
+            AssistChip(onClick = onOpenStudio, label = { Text("Studio") }, leadingIcon = { Icon(Icons.Filled.Tune, null) })
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.CalendarMonth, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(18.dp))
+            Text(DateFormat.getDateInstance(DateFormat.FULL).format(Date(now)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("HOLD TO REARRANGE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1)
         }
         DashboardGrid(settings, weather.report, weather.loading, onOpenUtility, vm)
     }
@@ -131,7 +131,7 @@ private fun DashboardGrid(settings: SettingsState, report: com.jmrc.jaboard.feat
             val height = when (size) { "Expanded" -> 220.dp; "Wide" -> 164.dp; else -> 164.dp }
             DashboardCard(
                 name = name, report = report, loading = weatherLoading, sizeLabel = size,
-                modifier = Modifier.fillMaxWidth().height(height)
+                modifier = Modifier.animateItem().fillMaxWidth().height(height)
                     .graphicsLayer { if (dragged == name) { translationX = dragOffset.x; translationY = dragOffset.y; scaleX = 1.025f; scaleY = 1.025f } }
                     .pointerInput(name, settings.sizes) {
                         detectDragGesturesAfterLongPress(
@@ -178,12 +178,46 @@ private fun cardRoute(name: String) = when (name) {
 }
 
 @Composable
+private fun AnimatedMetricBar(progress: Float, modifier: Modifier = Modifier) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+        label = "metricProgress"
+    )
+    LinearProgressIndicator(progress = { animatedProgress }, modifier = modifier)
+}
+
+@Composable
 private fun DashboardCard(name: String, report: com.jmrc.jaboard.feature.WeatherReport?, loading: Boolean, sizeLabel: String, modifier: Modifier, onClick: () -> Unit, onUtility: (String) -> Unit) {
     val context = LocalContext.current
-    Card(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
+    val containerColor = when (name) {
+        "Weather", "Calendar" -> MaterialTheme.colorScheme.tertiaryContainer
+        "Clock", "Battery", "Now Playing" -> MaterialTheme.colorScheme.primaryContainer
+        "Memory", "Storage" -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val leadingIcon = when (name) {
+        "Clock" -> Icons.Filled.AccessTime
+        "Weather" -> Icons.Filled.Cloud
+        "Battery" -> Icons.Filled.BatteryFull
+        "Now Playing" -> Icons.Filled.GraphicEq
+        "Memory" -> Icons.Filled.Memory
+        "Storage" -> Icons.Filled.Storage
+        "Quick Actions" -> Icons.Filled.Bolt
+        else -> Icons.Filled.CalendarMonth
+    }
+    val cardShape = when (name) {
+        "Clock", "Weather" -> RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomEnd = 32.dp, bottomStart = 14.dp)
+        "Quick Actions" -> RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomEnd = 14.dp, bottomStart = 28.dp)
+        else -> RoundedCornerShape(28.dp)
+    }
+    Card(modifier = modifier.animateContentSize().clickable(onClick = onClick), shape = cardShape, colors = CardDefaults.cardColors(containerColor = containerColor), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column(Modifier.fillMaxSize().padding(17.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Box(Modifier.size(36.dp).clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.58f)), contentAlignment = Alignment.Center) {
+                    Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 10.dp))
                 Icon(Icons.Filled.OpenInNew, contentDescription = "Open $name", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             when (name) {
@@ -213,22 +247,23 @@ private fun DashboardCard(name: String, report: com.jmrc.jaboard.feature.Weather
                     val battery = readBattery(context)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.BatteryFull, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
-                        Text("${battery.percent}%", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 10.dp))
+                        Text(battery.percent?.let { "$it%" } ?: "Unavailable", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 10.dp))
                     }
-                    Text(battery.status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LinearProgressIndicator(progress = { battery.percent / 100f }, modifier = Modifier.fillMaxWidth())
+                    Text(listOfNotNull(battery.status, battery.currentNowMa?.let { "${formatCurrent(it)} now" }).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    battery.percent?.let { AnimatedMetricBar(progress = it / 100f, modifier = Modifier.fillMaxWidth()) }
                 }
                 "Memory" -> {
-                    val info = memoryInfo(context)
-                    Text(formatBytes(info.first), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                    Text("of ${formatBytes(info.second)} in use", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LinearProgressIndicator(progress = { if (info.second > 0) info.first.toFloat() / info.second else 0f }, modifier = Modifier.fillMaxWidth())
+                    val info = memorySnapshot(context)
+                    Text(formatBytes(info.used), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("${formatBytes(info.available)} available · ${formatBytes(info.total)} RAM", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AnimatedMetricBar(progress = if (info.total > 0) info.used.toFloat() / info.total else 0f, modifier = Modifier.fillMaxWidth())
+                    if (info.lowMemory) Text("Android reports low memory", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 }
                 "Storage" -> {
                     val info = storageInfo()
-                    Text(formatBytes(info.first), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                    Text("of ${formatBytes(info.second)} used", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LinearProgressIndicator(progress = { if (info.second > 0) info.first.toFloat() / info.second else 0f }, modifier = Modifier.fillMaxWidth())
+                    Text(if (info.second > 0) formatBytes(info.first) else "Unavailable", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(if (info.second > 0) "of ${formatBytes(info.second)} used" else "Storage stats not reported", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AnimatedMetricBar(progress = if (info.second > 0) info.first.toFloat() / info.second else 0f, modifier = Modifier.fillMaxWidth())
                 }
                 "Now Playing" -> {
                     val playback by JaBoardMediaNotificationListener.playback.collectAsState()
@@ -241,10 +276,10 @@ private fun DashboardCard(name: String, report: com.jmrc.jaboard.feature.Weather
                     }
                     Text(if (playback.playing) "Playing" else "Ready when you are", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
-                "Quick Actions" -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FilledTonalButton(onClick = { onUtility("notes") }, modifier = Modifier.weight(1f)) { Text("Notes") }
-                    FilledTonalButton(onClick = { onUtility("todo") }, modifier = Modifier.weight(1f)) { Text("To-dos") }
-                    FilledTonalButton(onClick = { onUtility("calculator") }, modifier = Modifier.weight(1f)) { Text("Calc") }
+                "Quick Actions" -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FilledTonalButton(onClick = { onUtility("notes") }, modifier = Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 10.dp)) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Filled.Notes, null, modifier = Modifier.size(18.dp)); Text("Notes", style = MaterialTheme.typography.labelSmall, maxLines = 1) } }
+                    FilledTonalButton(onClick = { onUtility("todo") }, modifier = Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 10.dp)) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Filled.TaskAlt, null, modifier = Modifier.size(18.dp)); Text("To-dos", style = MaterialTheme.typography.labelSmall, maxLines = 1) } }
+                    FilledTonalButton(onClick = { onUtility("calculator") }, modifier = Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 10.dp)) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Filled.Calculate, null, modifier = Modifier.size(18.dp)); Text("Calc", style = MaterialTheme.typography.labelSmall, maxLines = 1) } }
                 }
                 "Calendar" -> CalendarDashboardContent()
                 else -> Text(sizeLabel, style = MaterialTheme.typography.bodyMedium)
