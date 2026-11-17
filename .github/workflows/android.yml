@@ -2,7 +2,7 @@ name: Android verification
 
 on:
   push:
-    branches: [main, arena/386b3fb9-jaboard]
+    branches: [main, arena/7a327b55-jaboard]
   pull_request:
     branches: [main]
 
@@ -30,11 +30,11 @@ jobs:
           test -x "$ANDROID_HOME/platform-tools/adb"
           test -d "$ANDROID_HOME/platforms/android-35"
           test -d "$ANDROID_HOME/build-tools/35.0.0"
-      - name: Run unit tests, lint, and build the debug APK
+      - name: Run unit tests, release lint, and build the release APK
         id: android-build
         run: |
           set +e
-          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug > build.log 2>&1
+          ./gradlew --no-daemon testDebugUnitTest lintRelease assembleRelease > build.log 2>&1
           result=$?
           cat build.log
           exit "$result"
@@ -42,16 +42,16 @@ jobs:
         if: failure() && steps.android-build.outcome == 'failure'
         run: |
           snippet="$(tail -n 35 build.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')"
-          report="app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt"
+          report="app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt"
           if [ -f "$report" ]; then
             findings="$(grep -E 'Error:' "$report" | head -n 12 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')"
             snippet="$snippet Lint findings: $findings"
           fi
-          echo "::error title=Gradle build output::${snippet}"
-      - name: Publish debug APK artifact
+          echo "::error title=Gradle release build output::${snippet}"
+      - name: Publish installable release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JaBoard-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: JaBoard-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
