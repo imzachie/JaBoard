@@ -1,0 +1,14 @@
+*.iml
+.gradle/
+.venv/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+**/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# Android Studio project metadata
+*.hprof
