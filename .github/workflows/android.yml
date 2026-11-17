@@ -31,7 +31,18 @@ jobs:
           test -d "$ANDROID_HOME/platforms/android-35"
           test -d "$ANDROID_HOME/build-tools/35.0.0"
       - name: Run unit tests, lint, and build the debug APK
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+        id: android-build
+        run: |
+          set +e
+          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug > build.log 2>&1
+          result=$?
+          cat build.log
+          exit "$result"
+      - name: Surface Gradle failure details
+        if: failure() && steps.android-build.outcome == 'failure'
+        run: |
+          snippet="$(tail -n 35 build.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')"
+          echo "::error title=Gradle build output::${snippet}"
       - name: Publish debug APK artifact
         uses: actions/upload-artifact@v4
         with:
