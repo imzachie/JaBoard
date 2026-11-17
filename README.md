@@ -4,7 +4,7 @@ A native Kotlin + Jetpack Compose dashboard and utility app (`com.jmrc.jaboard`)
 
 ## Project status
 
-The Android source project, Gradle configuration, manifest, application icon, local persistence, screens, and tests are implemented in this repository. The local sandbox has no JDK or Android SDK, so it cannot build APKs locally (`./gradlew --version` stops with `JAVA_HOME is not set and no 'java' command could be found`). The GitHub Actions workflow builds the **release** variant and publishes `app-release.apk` as a downloadable artifact. Release artifact availability is linked here after the hosted release build completes. The artifact is retained by GitHub Actions for 14 days and is not copied into the local working tree.
+The Android source project, Gradle configuration, manifest, application icon, local persistence, screens, and tests are implemented in this repository. The local sandbox has no JDK or Android SDK, so it cannot build APKs locally (`./gradlew --version` stops with `JAVA_HOME is not set and no 'java' command could be found`). The GitHub Actions workflow builds the **release** variant and publishes `app-release.apk` as a downloadable artifact. **[Download the JaBoard release APK](https://github.com/imzachie/JaBoard/actions/runs/44074109939/artifacts/14323644628)** (about 1.4 MB; unzip the artifact to get `app-release.apk`). GitHub Actions retains it for 14 days; it is not copied into the local working tree.
 
 ## Features
 
@@ -63,7 +63,7 @@ JaBoard does not request fine/background location, broad storage access, or noti
 - Calculator unit tests cover operator precedence, parentheses, percentages, trigonometry, constants, and invalid expressions.
 - Robolectric Room tests cover note create/pin/delete and task completion persistence.
 - Kotlin source syntax was checked with a Tree-sitter Kotlin parser; Android XML and the version catalog also parsed successfully.
-- **Release verification:** `testDebugUnitTest` (calculator and Robolectric Room persistence tests), `lintRelease`, and `assembleRelease` run in GitHub Actions; see the release build run linked above.
+- **Passed on GitHub Actions run 44074109939:** Gradle dependency resolution, `testDebugUnitTest` (calculator and Robolectric Room persistence tests), `lintRelease`, and `assembleRelease`. The run published the installable release artifact linked above.
 - **Not run:** installation or interactive testing on an emulator or physical Android device. The local sandbox has no emulator or connected device.
 
 ## Known limitations
