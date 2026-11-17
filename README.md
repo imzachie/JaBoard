@@ -4,7 +4,7 @@ A native Kotlin + Jetpack Compose dashboard and utility app (`com.jmrc.jaboard`)
 
 ## Project status
 
-The Android source project, Gradle configuration, manifest, application icon, local persistence, screens, and tests are implemented in this repository. **A debug APK could not be built in the provided sandbox**: it has no Java/JDK, Android SDK, Android build tools, Gradle installation, Android Studio, emulator, or connected device. The sandbox also cannot reach Android's SDK repository or Gradle's distribution host. The build was attempted; `./gradlew --version` stopped immediately with `JAVA_HOME is not set and no 'java' command could be found`. No APK is included or claimed to exist. Build it in an Android development environment using the steps below.
+The Android source project, Gradle configuration, manifest, application icon, local persistence, screens, and tests are implemented in this repository. The local sandbox has no JDK or Android SDK, so it could not build the APK itself (`./gradlew --version` stops with `JAVA_HOME is not set and no 'java' command could be found`). To complete verification, the checked-in GitHub Actions workflow built and verified the app on a hosted Android runner. **The debug APK is available as the `JaBoard-debug-apk` artifact from [successful run 44071314716](https://github.com/imzachie/JaBoard/actions/runs/44071314716/artifacts/14323311599).** The artifact is retained by GitHub Actions for 14 days. It is not copied into the local working tree.
 
 ## Features
 
@@ -63,13 +63,14 @@ JaBoard does not request fine/background location, broad storage access, or noti
 
 - Calculator unit tests cover operator precedence, parentheses, percentages, trigonometry, constants, and invalid expressions.
 - Robolectric Room tests cover note create/pin/delete and task completion persistence.
-- Kotlin source syntax was checked with a Tree-sitter Kotlin parser.
-- **Not run:** Gradle dependency resolution, Android compilation, unit/Robolectric tests, Android Lint, APK install, emulator or physical-device testing. The sandbox lacks Java and Android SDK tooling, and the relevant download hosts are blocked. These checks must be run on a machine with the build requirements above.
+- Kotlin source syntax was checked with a Tree-sitter Kotlin parser; Android XML and the version catalog also parsed successfully.
+- **Passed on GitHub Actions run 44071314716:** Gradle dependency resolution, `testDebugUnitTest` (calculator and Robolectric Room persistence tests), `lintDebug`, and `assembleDebug`. The run uploaded the 17.2 MB debug APK artifact linked above.
+- **Not run:** installation or interactive testing on an emulator or physical Android device. The local sandbox has no emulator or connected device.
 
 ## Known limitations
 
 - First build requires normal access to Google Maven, Maven Central, and the Gradle distribution service so Gradle can resolve Android/Compose dependencies and download Gradle 8.9.
-- No APK is present until a successful Android build is performed.
+- The APK is not checked into the source tree; download the successful CI artifact above or build it locally.
 - Location lookup uses an available last-known location rather than requesting continuous or background updates; manual city selection is the reliable alternative.
 - Timer completion is in-app and does not post a notification.
 - Weather temperatures are currently shown in Celsius.
