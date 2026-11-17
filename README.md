@@ -4,7 +4,7 @@ A native Kotlin + Jetpack Compose dashboard and utility app (`com.jmrc.jaboard`)
 
 ## Project status
 
-The Android source project, Gradle configuration, manifest, application icon, local persistence, screens, and tests are implemented in this repository. The local sandbox has no JDK or Android SDK, so it could not build the APK itself (`./gradlew --version` stops with `JAVA_HOME is not set and no 'java' command could be found`). To complete verification, the checked-in GitHub Actions workflow built and verified the app on a hosted Android runner. **The debug APK is available as the `JaBoard-debug-apk` artifact from [successful run 44071314716](https://github.com/imzachie/JaBoard/actions/runs/44071314716/artifacts/14323311599).** The artifact is retained by GitHub Actions for 14 days. It is not copied into the local working tree.
+The Android source project, Gradle configuration, manifest, application icon, local persistence, screens, and tests are implemented in this repository. The local sandbox has no JDK or Android SDK, so it cannot build APKs locally (`./gradlew --version` stops with `JAVA_HOME is not set and no 'java' command could be found`). The GitHub Actions workflow builds the **release** variant and publishes `app-release.apk` as a downloadable artifact. Release artifact availability is linked here after the hosted release build completes. The artifact is retained by GitHub Actions for 14 days and is not copied into the local working tree.
 
 ## Features
 
@@ -26,17 +26,16 @@ The Android source project, Gradle configuration, manifest, application icon, lo
 Set `ANDROID_SDK_ROOT` (or `ANDROID_HOME`) and either let Gradle locate the installed JDK or set `JAVA_HOME`. Then run:
 
 ```bash
-./gradlew assembleDebug
+./gradlew assembleRelease
 ```
 
-The expected output is `app/build/outputs/apk/debug/app-debug.apk`. To run local tests:
+The expected output is `app/build/outputs/apk/release/app-release.apk`. To run verification locally:
 
 ```bash
-./gradlew testDebugUnitTest
-./gradlew lintDebug
+./gradlew testDebugUnitTest lintRelease assembleRelease
 ```
 
-Install to a connected Android device with `adb install -r app/build/outputs/apk/debug/app-debug.apk`. No device test has been run in the sandbox.
+The release variant is installable and minified. For CI convenience it uses Gradle's debug signing config, not a private production signing key. Do not publish this signature to Google Play; configure a private release signing key for production distribution. Install for local testing with `adb install -r app/build/outputs/apk/release/app-release.apk`. No emulator or device test has been run.
 
 ## Permissions
 
@@ -64,13 +63,13 @@ JaBoard does not request fine/background location, broad storage access, or noti
 - Calculator unit tests cover operator precedence, parentheses, percentages, trigonometry, constants, and invalid expressions.
 - Robolectric Room tests cover note create/pin/delete and task completion persistence.
 - Kotlin source syntax was checked with a Tree-sitter Kotlin parser; Android XML and the version catalog also parsed successfully.
-- **Passed on GitHub Actions run 44071314716:** Gradle dependency resolution, `testDebugUnitTest` (calculator and Robolectric Room persistence tests), `lintDebug`, and `assembleDebug`. The run uploaded the 17.2 MB debug APK artifact linked above.
+- **Release verification:** `testDebugUnitTest` (calculator and Robolectric Room persistence tests), `lintRelease`, and `assembleRelease` run in GitHub Actions; see the release build run linked above.
 - **Not run:** installation or interactive testing on an emulator or physical Android device. The local sandbox has no emulator or connected device.
 
 ## Known limitations
 
 - First build requires normal access to Google Maven, Maven Central, and the Gradle distribution service so Gradle can resolve Android/Compose dependencies and download Gradle 8.9.
-- The APK is not checked into the source tree; download the successful CI artifact above or build it locally.
+- The release APK is not checked into the source tree; download the CI artifact above or build it locally. CI signs it with the generated default debug key so it can be sideloaded; it is not Play Store signing, and a later CI build may use a different key.
 - Location lookup uses an available last-known location rather than requesting continuous or background updates; manual city selection is the reliable alternative.
 - Timer completion is in-app and does not post a notification.
 - Weather temperatures are currently shown in Celsius.

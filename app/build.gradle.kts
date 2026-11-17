@@ -22,6 +22,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // Produces an installable CI release APK without requiring private signing secrets.
+            // Replace with a private production signing config before Play Store distribution.
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
